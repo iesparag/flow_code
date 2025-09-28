@@ -1,0 +1,96 @@
+<div class="grid">
+  <mat-card>
+    <mat-card-title>{{ selectedId ? 'Edit Audience' : 'Create Audience' }}</mat-card-title>
+    <mat-card-content>
+      <mat-form-field class="full" appearance="outline">
+        <mat-label>Name</mat-label>
+        <input matInput [(ngModel)]="name" placeholder="Prospects" [disabled]="saving || deleting" />
+      </mat-form-field>
+
+      <!-- Import section: JSON/CSV/XLSX/PDF to recipients JSON -->
+      <div class="import-box">
+        <div class="row">
+          <label class="file">
+            <input type="file" accept=".json,.csv,.xlsx,.xls,.pdf" (change)="onImportFile($event)" />
+            <span>Select JSON / CSV / Excel / PDF…</span>
+          </label>
+          <button mat-stroked-button color="primary" (click)="showImportHelp=true" *ngIf="!showImportHelp">How it works</button>
+        </div>
+        <div class="help" *ngIf="showImportHelp">
+          <p>Supported formats:</p>
+          <ul>
+            <li>JSON: array of {{ '{' }} email, name? {{ '}' }}</li>
+            <li>CSV: header with email,name</li>
+            <li>Excel: first sheet with columns email,name</li>
+            <li>PDF: we extract emails and try to pair adjacent names</li>
+          </ul>
+        </div>
+      </div>
+
+      <mat-form-field class="full" appearance="outline">
+        <mat-label>Recipients JSON</mat-label>
+        <textarea matInput [(ngModel)]="recipientsJson" rows="10" placeholder='[{"email":"demo@example.com","name":"Demo"}]' [disabled]="saving || deleting"></textarea>
+      </mat-form-field>
+    </mat-card-content>
+    <mat-card-actions>
+      <ng-container *ngIf="!selectedId; else editBtns">
+        <button mat-raised-button color="primary" (click)="create()" [disabled]="saving">{{ saving ? 'Saving…' : 'Create' }}</button>
+      </ng-container>
+      <ng-template #editBtns>
+        <button mat-raised-button color="primary" (click)="save()" [disabled]="saving">{{ saving ? 'Saving…' : 'Save' }}</button>
+        <button mat-stroked-button color="warn" (click)="openDeleteDialog()" [disabled]="deleting">{{ deleting ? 'Deleting…' : 'Delete' }}</button>
+        <button mat-button (click)="cancelEdit()" [disabled]="saving || deleting">Cancel</button>
+      </ng-template>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card>
+    <mat-card-title>Audience List</mat-card-title>
+    <mat-progress-bar *ngIf="loadingList" mode="indeterminate"></mat-progress-bar>
+    <mat-card-actions>
+      <button mat-stroked-button color="primary" (click)="load()" [disabled]="loadingList">{{ loadingList ? 'Loading…' : 'Reload' }}</button>
+    </mat-card-actions>
+    <mat-card-content>
+      <div class="list-wrap">
+      <mat-nav-list dense>
+        <a mat-list-item *ngFor="let a of items" (click)="select(a)" [class.active]="a?._id === selectedId">
+          <span matListItemTitle>{{a.name}}</span>
+          <span matListItemLine>{{(a.recipients && a.recipients.length) || 0}} recipients</span>
+          <span class="grow"></span>
+          <span class="actions absolute">
+            <button mat-icon-button [matMenuTriggerFor]="itemMenu" [matMenuTriggerData]="{ a: a }" aria-label="Actions" matTooltip="Actions" (click)="$event.stopPropagation()">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+          </span>
+        </a>
+      </mat-nav-list>
+      <div class="empty" *ngIf="!items?.length && !loadingList">No audiences yet. Create your first audience on the left.</div>
+      </div>
+
+      <mat-menu #itemMenu="matMenu">
+        <ng-template matMenuContent let-a="a">
+          <button mat-menu-item (click)="select(a); $event.stopPropagation()">
+            <mat-icon color="primary">edit</mat-icon>
+            <span>Edit</span>
+          </button>
+          <button mat-menu-item (click)="openDeleteDialog(a); $event.stopPropagation()">
+            <mat-icon color="warn">delete</mat-icon>
+            <span>Delete</span>
+          </button>
+        </ng-template>
+      </mat-menu>
+    </mat-card-content>
+  </mat-card>
+</div>
+
+<!-- Delete Confirmation Dialog Template -->
+<ng-template #deleteDialog let-data>
+  <h2 mat-dialog-title>Delete Audience</h2>
+  <mat-dialog-content>
+    Are you sure you want to delete "<strong>{{ data?.name }}</strong>"?
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-raised-button color="warn" (click)="confirmDelete(data?._id)">Delete</button>
+  </mat-dialog-actions>
+  </ng-template>

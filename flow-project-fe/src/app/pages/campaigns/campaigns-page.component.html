@@ -1,0 +1,310 @@
+<div class="campaigns-container">
+  <!-- Left Sidebar - Campaign List -->
+  <div class="campaign-sidebar">
+    <div class="sidebar-header">
+      <h2>Campaigns</h2>
+      <button mat-raised-button color="primary" (click)="showCreateForm = !showCreateForm">
+        <mat-icon>add</mat-icon> New Campaign
+      </button>
+    </div>
+
+    <!-- Create Campaign Form -->
+    <div class="create-campaign-form" *ngIf="showCreateForm">
+      <h3>Create New Campaign</h3>
+      <form (ngSubmit)="create()" #campaignForm="ngForm">
+        <mat-form-field appearance="outline">
+          <mat-label>Campaign Name</mat-label>
+          <input matInput [(ngModel)]="name" name="name" required placeholder="e.g., Summer Sale 2023">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Select Flow</mat-label>
+          <mat-select [(ngModel)]="flowId" name="flowId" required>
+            <mat-option *ngFor="let f of flows" [value]="f._id">
+              {{f.name}} (v{{f.version}})
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Select Audience</mat-label>
+          <mat-select [(ngModel)]="audienceId" name="audienceId" required>
+            <mat-option *ngFor="let a of audiences" [value]="a._id">
+              {{a.name}} ({{ (a.recipients && a.recipients.length) || 0 }} contacts)
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>From Email</mat-label>
+          <input matInput type="email" [(ngModel)]="fromEmail" name="fromEmail" required>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Reply-To (optional)</mat-label>
+          <input matInput type="email" [(ngModel)]="replyTo" name="replyTo">
+        </mat-form-field>
+
+        <div class="form-actions">
+          <button mat-button type="button" (click)="cancelCreate()">Cancel</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="!campaignForm.form.valid">
+            Create Campaign
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Campaign List -->
+    <div class="campaign-list">
+      <mat-form-field appearance="outline" class="search-box">
+        <mat-label>Search campaigns</mat-label>
+        <input matInput 
+               [(ngModel)]="searchQuery" 
+               (input)="filterCampaigns()" 
+               placeholder="Search by name or status"
+               [disabled]="isLoading">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+
+      <mat-button-toggle-group [(ngModel)]="statusFilter" 
+                             (change)="filterCampaigns()" 
+                             class="status-filters"
+                             [disabled]="isLoading">
+        <mat-button-toggle value="all">All</mat-button-toggle>
+        <mat-button-toggle value="running">Running</mat-button-toggle>
+        <mat-button-toggle value="draft">Draft</mat-button-toggle>
+        <mat-button-toggle value="completed">Completed</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <!-- Loading State -->
+      <div class="loading-state" *ngIf="isLoading">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Loading campaigns...</p>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" *ngIf="!isLoading && (!filteredCampaigns || filteredCampaigns.length === 0)">
+        <mat-icon>campaign</mat-icon>
+        <h3>No campaigns found</h3>
+        <p *ngIf="items.length === 0">You don't have any campaigns yet. Create your first campaign to get started!</p>
+        <p *ngIf="items.length > 0 && filteredCampaigns.length === 0">No campaigns match your current filters.</p>
+        <button mat-raised-button 
+                color="primary" 
+                (click)="showCreateForm = true"
+                *ngIf="items.length === 0">
+          Create Campaign
+        </button>
+        <button mat-button 
+                (click)="statusFilter = 'all'; searchQuery = ''; filterCampaigns()"
+                *ngIf="items.length > 0 && filteredCampaigns.length === 0">
+          Clear filters
+        </button>
+      </div>
+
+      <!-- Campaign Cards -->
+      <div class="campaign-cards" *ngIf="!isLoading && filteredCampaigns.length > 0">
+        <mat-card *ngFor="let campaign of filteredCampaigns" 
+                 [class.selected]="selectedCampaign?._id === campaign._id"
+                 (click)="selectCampaign(campaign)">
+          <mat-card-header>
+            <mat-card-title>{{campaign.name || 'Untitled Campaign'}}</mat-card-title>
+            <mat-card-subtitle>
+              <span class="status-badge" [ngClass]="campaign.status">
+                {{(campaign.status || 'draft') | titlecase}}
+              </span>
+              <span>• {{campaign.createdAt | date:'mediumDate'}}</span>
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="campaign-stats">
+              <div class="stat">
+                <div class="stat-value">{{campaign.stats.sent || 0}}</div>
+                <div class="stat-label">Sent</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value">{{campaign.stats.replied || 0}}</div>
+                <div class="stat-label">Replied</div>
+              </div>
+              <div class="stat">
+                <div class="stat-value">{{((campaign.stats.responseRate || 0) * 100) | number:'1.0-1'}}%</div>
+                <div class="stat-label">Response</div>
+              </div>
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-icon-button (click)="$event.stopPropagation(); toggleCampaignStatus(campaign)">
+              <mat-icon *ngIf="campaign.status === 'running' || campaign.status === 'scheduled'">pause</mat-icon>
+              <mat-icon *ngIf="campaign.status === 'paused' || campaign.status === 'draft'">play_arrow</mat-icon>
+            </button>
+            <button mat-icon-button color="warn" (click)="$event.stopPropagation(); confirmDelete(campaign)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Side - Campaign Details & Analytics -->
+  <div class="campaign-details" *ngIf="selectedCampaign">
+    <div class="details-header">
+      <h2>{{selectedCampaign.name}}</h2>
+      <div class="campaign-actions">
+        <button mat-button (click)="exportCampaignData()">
+          <mat-icon>download</mat-icon> Export
+        </button>
+        <button mat-button (click)="refreshCampaign()">
+          <mat-icon>refresh</mat-icon> Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Campaign Status Bar -->
+    <div class="status-bar">
+      <div class="status-item" *ngFor="let stat of getStatusStats()" 
+           [style.flex]="stat.value"
+           [class]="stat.status"
+           [matTooltip]="stat.tooltip">
+        <span class="stat-count">{{stat.count}}</span>
+        <span class="stat-label">{{stat.label}}</span>
+      </div>
+    </div>
+
+    <!-- Analytics Dashboard -->
+    <div class="analytics-dashboard">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value">{{selectedCampaign.stats.sent || 0}}</div>
+          <div class="metric-label">Sent</div>
+          <div class="metric-change" *ngIf="getChange('sent') !== null">
+            <ng-container *ngIf="selectedCampaign?.stats">
+              <div [class.positive]="getChange('sent') >= 0" [class.negative]="getChange('sent') < 0">
+                {{getChange('sent') >= 0 ? 'arrow_upward' : 'arrow_downward'}}
+                {{Math.abs(getChange('sent'))}}%
+              </div>
+            </ng-container>
+            {{Math.abs(getChange('sent'))}}%
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-value">{{selectedCampaign.stats.delivered || 0}}</div>
+          <div class="metric-label">Delivered</div>
+          <div class="metric-change" *ngIf="getChange('delivered') !== null">
+            <mat-icon [class.positive]="getChange('delivered') >= 0" [class.negative]="getChange('delivered') < 0">
+              {{getChange('delivered') >= 0 ? 'arrow_upward' : 'arrow_downward'}}
+            </mat-icon>
+            {{Math.abs(getChange('delivered'))}}%
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-value">{{selectedCampaign.stats.opened || 0}}</div>
+          <div class="metric-label">Opened</div>
+          <div class="metric-change" *ngIf="getChange('opened') !== null">
+            <mat-icon [class.positive]="getChange('opened') >= 0" [class.negative]="getChange('opened') < 0">
+              {{getChange('opened') >= 0 ? 'arrow_upward' : 'arrow_downward'}}
+            </mat-icon>
+            {{Math.abs(getChange('opened'))}}%
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-value">{{((selectedCampaign.stats.responseRate || 0) * 100) | number:'1.0-1'}}%</div>
+          <div class="metric-label">Response Rate</div>
+          <div class="metric-change" *ngIf="getChange('responseRate') !== null">
+            <mat-icon [class.positive]="getChange('responseRate') >= 0" [class.negative]="getChange('responseRate') < 0">
+              {{getChange('responseRate') >= 0 ? 'arrow_upward' : 'arrow_downward'}}
+            </mat-icon>
+            {{Math.abs(getChange('responseRate'))}}%
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Timeline -->
+      <div class="activity-timeline">
+        <h3>Recent Activity</h3>
+        <div class="timeline">
+          <div class="timeline-item" *ngFor="let activity of getRecentActivity()">
+            <div class="timeline-time">{{activity.timestamp | date:'shortTime'}}</div>
+            <div class="timeline-dot" [ngClass]="activity.type"></div>
+            <div class="timeline-content">
+              <div class="timeline-title">{{activity.title}}</div>
+              <div class="timeline-description" *ngIf="activity.description">{{activity.description}}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recipient List -->
+      <div class="recipient-list">
+        <h3>Recipients ({{selectedCampaign.stats.total || 0}})</h3>
+        <div class="table-container">
+          <table mat-table [dataSource]="selectedCampaign.recipients || []" class="mat-elevation-z1">
+            <!-- Email Column -->
+            <ng-container matColumnDef="email">
+              <th mat-header-cell *matHeaderCellDef>Email</th>
+              <td mat-cell *matCellDef="let recipient">{{recipient.email}}</td>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let recipient">
+                <span class="status-badge" [class]="recipient.status">
+                  {{recipient.status}}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Sent At Column -->
+            <ng-container matColumnDef="sentAt">
+              <th mat-header-cell *matHeaderCellDef>Sent At</th>
+              <td mat-cell *matCellDef="let recipient">
+                {{recipient.sentAt | date:'medium'}}
+              </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let recipient">
+                <button mat-icon-button matTooltip="View details" (click)="viewRecipientDetails(recipient)">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+                <button mat-icon-button matTooltip="Resend" (click)="resendToRecipient(recipient)">
+                  <mat-icon>restart_alt</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+        </div>
+        <div class="no-recipients" *ngIf="!selectedCampaign.recipients?.length">
+          <p>No recipient data available. Check back later for updates.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="!selectedCampaign">
+    <mat-icon>campaign</mat-icon>
+    <h3>No Campaign Selected</h3>
+    <p>Select a campaign from the list to view detailed analytics and tracking information.</p>
+  </div>
+</div>
+
+<!-- Confirmation Dialog -->
+<ng-template #deleteDialog>
+  <h2 mat-dialog-title>Delete Campaign</h2>
+  <mat-dialog-content>
+    <p>Are you sure you want to delete "{{campaignToDelete?.name}}"? This action cannot be undone.</p>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-button color="warn" [mat-dialog-close]="true" cdkFocusInitial>Delete</button>
+  </mat-dialog-actions>
+</ng-template>

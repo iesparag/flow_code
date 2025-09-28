@@ -1,0 +1,418 @@
+<!-- Full Screen Flow Builder Layout -->
+<div class="flow-builder-container">
+  
+  <!-- Top Toolbar -->
+  <div class="top-toolbar">
+    <div class="toolbar-left">
+      <button mat-icon-button (click)="toggleLeftSidebar()" matTooltip="Toggle Steps Panel">
+        <mat-icon>{{ leftSidebarOpen ? 'menu_open' : 'menu' }}</mat-icon>
+      </button>
+      
+      <mat-form-field appearance="outline" class="flow-name-field">
+        <mat-label>Flow Name</mat-label>
+        <input matInput [(ngModel)]="name" placeholder="Welcome Series">
+      </mat-form-field>
+    </div>
+    
+    <div class="toolbar-center">
+      <div class="zoom-controls">
+        <button mat-icon-button (click)="zoomOut()" matTooltip="Zoom Out">
+          <mat-icon>zoom_out</mat-icon>
+        </button>
+        <span class="zoom-level">{{ (zoomLevel * 100).toFixed(0) }}%</span>
+        <button mat-icon-button (click)="zoomIn()" matTooltip="Zoom In">
+          <mat-icon>zoom_in</mat-icon>
+        </button>
+        <button mat-icon-button (click)="resetZoom()" matTooltip="Reset Zoom">
+          <mat-icon>center_focus_strong</mat-icon>
+        </button>
+      </div>
+    </div>
+    
+    <div class="toolbar-right">
+      <button mat-stroked-button color="accent" (click)="openFlowsModal()">
+        <mat-icon>list</mat-icon> Browse
+      </button>
+      <button mat-raised-button color="primary" (click)="saveFlow()" [disabled]="saving">
+        <mat-icon>save</mat-icon> {{ editingFlow ? 'Update' : 'Save' }}
+      </button>
+      <button mat-button (click)="resetBuilder()" *ngIf="editingFlow">
+        <mat-icon>clear</mat-icon> Cancel
+      </button>
+      
+      <button mat-icon-button (click)="toggleRightSidebar()" matTooltip="Toggle Properties Panel">
+        <mat-icon>{{ rightSidebarOpen ? 'menu_open' : 'menu' }}</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    
+    <!-- Left Sidebar -->
+    <div class="left-sidebar" [class.collapsed]="!leftSidebarOpen">
+      <div class="sidebar-header">
+        <h3>
+          <mat-icon>layers</mat-icon>
+          Steps & Tools
+        </h3>
+        <button mat-icon-button (click)="toggleLeftSidebar()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      
+      <div class="sidebar-content">
+        <!-- Add Step Tools -->
+        <div class="tool-section">
+          <h4>Add Steps</h4>
+          <div class="tool-grid">
+            <button mat-stroked-button (click)="addStep('sendEmail')" matTooltip="Add Email step">
+              <mat-icon>mail</mat-icon>
+              <span>Email</span>
+            </button>
+            <button mat-stroked-button (click)="addStep('wait')" matTooltip="Add Wait step">
+              <mat-icon>schedule</mat-icon>
+              <span>Wait</span>
+            </button>
+            <button mat-stroked-button (click)="addStep('conditionReply')" matTooltip="Add Condition step">
+              <mat-icon>call_received</mat-icon>
+              <span>Condition</span>
+            </button>
+            <button mat-stroked-button (click)="addStep('end')" matTooltip="Add End step">
+              <mat-icon>stop_circle</mat-icon>
+              <span>End</span>
+            </button>
+          </div>
+          
+          <button mat-flat-button color="primary" (click)="addFollowUp()" class="full-width-btn">
+            <mat-icon>add</mat-icon>
+            Add Follow-up (Wait + Email)
+          </button>
+        </div>
+
+        <!-- Steps List -->
+        <div class="tool-section">
+          <h4>Flow Steps</h4>
+          <mat-nav-list class="steps-list">
+            <a mat-list-item
+               *ngFor="let s of steps; let i = index"
+               [class.active]="i === selectedIndex"
+               (click)="selectedIndex = i">
+              <mat-icon matListItemIcon>
+                {{ s.type === 'sendEmail' ? 'mail' : (s.type === 'wait' ? 'schedule' : (s.type === 'conditionReply' ? 'call_received' : 'stop_circle')) }}
+              </mat-icon>
+              <span matListItemTitle>{{ s.title || (s.type) }}</span>
+              <span matListItemLine>ID: {{ s.id }}</span>
+              <button mat-icon-button color="warn" (click)="$event.stopPropagation(); deleteStep(i)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </a>
+          </mat-nav-list>
+        </div>
+
+        <!-- Connection Tools -->
+        <div class="tool-section">
+          <h4>Connections</h4>
+          <div class="connection-tools">
+            <button mat-raised-button color="accent" (click)="startLinkFromSelected()" [disabled]="!selectedStep">
+              <mat-icon>link</mat-icon>
+              Start Link
+            </button>
+            <button mat-button color="warn" (click)="cancelLink()" [disabled]="!linkFromId">
+              <mat-icon>link_off</mat-icon>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Flow Canvas -->
+    <div class="flow-canvas" [class.left-expanded]="leftSidebarOpen" [class.right-expanded]="rightSidebarOpen">
+      <div class="canvas-container" #canvasContainer
+           (mousedown)="onCanvasMouseDown($event)"
+           (mousemove)="onCanvasMouseMove($event)"
+           (mouseup)="onCanvasMouseUp()"
+           (mouseleave)="onCanvasMouseUp()"
+           [class.is-panning]="isPanning">
+        <div class="custom-flow-canvas"
+             [style.width.px]="canvasW"
+             [style.height.px]="canvasH"
+             [style.transform]="'scale(' + zoomLevel + ')'"
+             [style.transform-origin]="transformOrigin"
+             (wheel)="onMouseWheel($event)">
+          
+          <!-- Custom SVG Connections -->
+          <svg class="connections-layer" 
+               [attr.width]="canvasW" 
+               [attr.height]="canvasH"
+               style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1;">
+            <path *ngFor="let connection of connections; trackBy: trackConnection"
+                  [attr.d]="getConnectionPath(connection)"
+                  class="connection-path"
+                  stroke="#2196f3"
+                  stroke-width="2.5"
+                  fill="none">
+            </path>
+          </svg>
+
+          <!-- Flow Nodes -->
+          <div 
+            *ngFor="let step of steps" 
+            [style.left.px]="step.pos?.x || 0"
+            [style.top.px]="step.pos?.y || 0"
+            [class.selected]="selectedStep === step.id"
+            [class.type-email]="step.type === 'sendEmail'"
+            [class.type-wait]="step.type === 'wait'"
+            [class.type-condition]="step.type === 'conditionReply'"
+            [class.type-end]="step.type === 'end'"
+            class="flow-node draggable-node"
+            (click)="handleNodeClick($event, step.id)"
+            (mousedown)="startDrag($event, step.id)"
+            [attr.data-node-id]="step.id">
+            
+            <!-- Input connectors on all 4 sides -->
+            <div class="input-connector left-connector"
+                 [attr.data-input-id]="step.id + '_input'"
+                 (mousedown)="$event.stopPropagation()">
+            </div>
+            <div class="input-connector right-connector"
+                 [attr.data-input-id]="step.id + '_input'"
+                 (mousedown)="$event.stopPropagation()">
+            </div>
+            <div class="input-connector top-connector"
+                 [attr.data-input-id]="step.id + '_input'"
+                 (mousedown)="$event.stopPropagation()">
+            </div>
+            <div class="input-connector bottom-connector"
+                 [attr.data-input-id]="step.id + '_input'"
+                 (mousedown)="$event.stopPropagation()">
+            </div>
+            
+            <!-- Node content -->
+            <div class="node-content">
+              <div class="node-header">
+                <mat-icon class="node-icon">
+                  {{ step.type === 'sendEmail' ? 'mail' : (step.type === 'wait' ? 'schedule' : (step.type === 'conditionReply' ? 'call_received' : 'stop_circle')) }}
+                </mat-icon>
+                <span class="node-title">{{ getNodeTypeLabel(step.type) }}</span>
+              </div>
+              <div class="node-body">
+                <div class="node-id">{{ step.id }}</div>
+                <div class="node-details" *ngIf="step.type === 'sendEmail'">{{ step.title || 'Email' }}</div>
+                <div class="node-details" *ngIf="step.type === 'wait'">{{ (step.delayMs || 0) / 1000 }}s</div>
+              </div>
+            </div>
+            
+            <!-- Output connector for non-end nodes -->
+            <div *ngIf="step.type !== 'end'" 
+                 class="output-connector bottom-connector"
+                 [attr.data-output-id]="step.id + '_output'"
+                 (click)="startConnection($event, step.id, 'output')"
+                 (mousedown)="$event.stopPropagation()">
+            </div>
+            
+            <!-- Condition outputs for condition nodes -->
+            <div *ngIf="step.type === 'conditionReply'" class="condition-outputs">
+              <div class="output-connector true-output right-connector"
+                   [attr.data-output-id]="step.id + '_true'"
+                   (click)="startConnection($event, step.id, 'output')"
+                   (mousedown)="$event.stopPropagation()">
+                <span class="output-label">Yes</span>
+              </div>
+              <div class="output-connector false-output bottom-connector"
+                   [attr.data-output-id]="step.id + '_false'"
+                   (click)="startConnection($event, step.id, 'output')"
+                   (mousedown)="$event.stopPropagation()">
+                <span class="output-label">No</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      <!-- Connection Info Overlay -->
+      <div class="flow-info" *ngIf="isConnecting && connectionStart">
+        <mat-icon>info</mat-icon>
+        🔗 Connecting from: {{ connectionStart.nodeId }} — click on target node to connect
+      </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="right-sidebar" [class.collapsed]="!rightSidebarOpen">
+      <div class="sidebar-header">
+        <h3>
+          <mat-icon>settings</mat-icon>
+          Properties
+        </h3>
+        <button mat-icon-button (click)="toggleRightSidebar()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      
+      <div class="sidebar-content" *ngIf="selectedStep as s; else noSelection">
+        <div class="property-section">
+          <h4>Basic Info</h4>
+          <div class="property-row">
+            <label>ID</label>
+            <div class="property-value">{{ s.id }}</div>
+          </div>
+          <div class="property-row">
+            <label>Type</label>
+            <div class="property-value">{{ getNodeTypeLabel(s.type) }}</div>
+          </div>
+        </div>
+
+        <div class="property-section" *ngIf="s.type === 'sendEmail'">
+          <h4>Email Settings</h4>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Title</mat-label>
+            <input matInput [(ngModel)]="s.title" placeholder="Email title">
+          </mat-form-field>
+          
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Select Template</mat-label>
+            <mat-select [(ngModel)]="s.templateId">
+              <mat-option [value]="''">None</mat-option>
+              <mat-option *ngFor="let t of templates" [value]="t._id">{{ t.name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="property-section" *ngIf="s.type === 'wait'">
+          <h4>Wait Settings</h4>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Delay (ms)</mat-label>
+            <input matInput type="number" [(ngModel)]="s.delayMs">
+          </mat-form-field>
+          <div class="quick-actions">
+            <button mat-stroked-button (click)="s.delayMs = 60*60*1000">1 Hour</button>
+            <button mat-stroked-button (click)="s.delayMs = 24*60*60*1000">1 Day</button>
+            <button mat-stroked-button (click)="s.delayMs = 7*24*60*60*1000">1 Week</button>
+          </div>
+        </div>
+
+        <div class="property-section" *ngIf="s.type === 'conditionReply'">
+          <h4>Condition Settings</h4>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Window (ms)</mat-label>
+            <input matInput type="number" [(ngModel)]="s.windowMs">
+          </mat-form-field>
+        </div>
+
+        <div class="property-section">
+          <h4>Connections</h4>
+          <div class="connections-list">
+            <div class="connection-item" *ngFor="let e of s.next; let i = index">
+              <span class="connection-label">
+                {{ s.type === 'conditionReply' ? (i === 0 ? 'TRUE →' : 'FALSE →') : 'Next →' }}
+              </span>
+              <span class="connection-target">{{ e.to }}</span>
+              <button mat-icon-button color="warn" (click)="unlink(s.id, e.to)">
+                <mat-icon>link_off</mat-icon>
+              </button>
+            </div>
+          </div>
+          
+          <div class="connection-actions">
+            <button mat-raised-button color="primary" (click)="startLinkFromSelected()">
+              <mat-icon>link</mat-icon>
+              Start Link
+            </button>
+            <button mat-button color="warn" (click)="cancelLink()" [disabled]="!linkFromId">
+              <mat-icon>link_off</mat-icon>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <ng-template #noSelection>
+        <div class="no-selection">
+          <mat-icon>touch_app</mat-icon>
+          <h4>No Step Selected</h4>
+          <p>Click on a step in the flow to view and edit its properties.</p>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>
+
+<!-- Flows Modal -->
+<div class="modal-overlay" *ngIf="showFlowsModal" (click)="closeFlowsModal()">
+  <div class="flows-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>
+        <mat-icon>account_tree</mat-icon>
+        Existing Flows
+      </h2>
+      <button mat-icon-button (click)="closeFlowsModal()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+    
+    <div class="modal-content">
+      <div class="flows-grid" *ngIf="flows.length > 0; else noFlows">
+        <div class="flow-card" *ngFor="let flow of flows">
+          <div class="flow-card-header">
+            <h3>{{ flow.name }}</h3>
+            <div class="flow-status" [class]="flow.status || 'draft'">
+              {{ flow.status || 'draft' }}
+            </div>
+          </div>
+          
+          <div class="flow-card-body">
+            <p class="flow-info">
+              <mat-icon>layers</mat-icon>
+              {{ flow.nodes.length || 0 }} steps
+            </p>
+            <p class="flow-info">
+              <mat-icon>schedule</mat-icon>
+              Version {{ flow.version || 0 }}
+            </p>
+          </div>
+          
+          <div class="flow-card-actions">
+            <button mat-button color="primary" (click)="editFlow(flow); closeFlowsModal()" [disabled]="!flow._id">
+              <mat-icon>edit</mat-icon>
+              Edit
+            </button>
+            <button mat-button color="accent" (click)="publish(flow)" [disabled]="!flow._id">
+              <mat-icon>publish</mat-icon>
+              Publish
+            </button>
+            <button mat-button color="warn" (click)="deleteFlow(flow)" [disabled]="!flow._id">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <ng-template #noFlows>
+        <div class="no-flows">
+          <mat-icon>inbox</mat-icon>
+          <h3>No flows yet</h3>
+          <p>Create your first automation flow to get started</p>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar Toggle Buttons (when collapsed) -->
+<button 
+  *ngIf="!leftSidebarOpen" 
+  class="sidebar-toggle-left" 
+  (click)="toggleLeftSidebar()"
+  matTooltip="Open Steps Panel">
+  <mat-icon>chevron_right</mat-icon>
+</button>
+
+<button 
+  *ngIf="!rightSidebarOpen" 
+  class="sidebar-toggle-right" 
+  (click)="toggleRightSidebar()"
+  matTooltip="Open Properties Panel">
+  <mat-icon>chevron_left</mat-icon>
+</button>

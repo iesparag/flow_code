@@ -1,0 +1,60 @@
+.grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: start; }
+.full { width: 100%; }
+.spacer { flex: 1 1 auto; }
+.editor { border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; }
+a.active { background: #f5f5f5; }
+.grow { flex: 1 1 auto; }
+.muted { color: rgba(0,0,0,0.6); }
+.actions { opacity: .6; transition: opacity .15s ease; }
+a:hover .actions { opacity: 1; }
+.list-wrap { border: 1px solid #eee; border-radius: 10px; overflow: hidden; background: #fff; }
+.empty { padding: 12px; color: rgba(0,0,0,.55); text-align: center; }
+
+/* Make each list item look like a light card */
+.list-wrap .mat-mdc-list-item.mdc-list-item { margin: 6px 8px; border: 1px solid #ececec; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.list-wrap .mat-mdc-list-item.mdc-list-item:hover {
+  background: #f9fafb;
+  box-shadow: 0 2px 6px rgba(0,0,0,.06);
+}
+.list-wrap a.mat-mdc-list-item { position: relative; padding-right: 44px; }
+.list-wrap a.mat-mdc-list-item .actions.absolute { position: absolute; top: 6px; right: 6px; }
+.list-wrap a.mat-mdc-list-item .actions.absolute .mat-icon { color: rgba(0,0,0,.54); }
+.list-wrap a.mat-mdc-list-item .mdc-list-item__content {
+  align-items: flex-start;
+}
+.list-wrap a.mat-mdc-list-item span[matListItemTitle] { font-weight: 600; }
+.list-wrap a.mat-mdc-list-item span[matListItemLine] {
+  margin-top: 2px;
+}
+
+/* Tighter actions icon area */
+.list-wrap .actions button.mat-mdc-icon-button {
+  width: 36px;
+  height: 36px;
+}
+
+/* Menu visual tweak */
+.mat-mdc-menu-panel { border-radius: 10px; padding: 4px 0; }
+.mat-mdc-menu-item .mat-icon { margin-right: 8px; }
+
+/* Card paddings */
+mat-card .mat-mdc-card-content { padding-top: 8px; }
+mat-card .mat-mdc-card-actions { padding-top: 0; }
+
+/* Reduce reload button top space */
+mat-card-title + mat-progress-bar { margin-top: -4px; }
+
+/* Attachments UI */
+.attachments { margin-top: 12px; }
+.attachments h4 { margin: 8px 0; font-weight: 600; }
+.attachments .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.attachments .file input[type="file"] { display: none; }
+.attachments .file span { display: inline-block; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; background: #fff; }
+.attachments .half { width: 200px; min-width: 180px; }
+.attachments .wide { min-width: 260px; flex: 1 1 auto; }
+.attachments .list { margin-top: 8px; border: 1px dashed #e0e0e0; border-radius: 8px; }
+.attachments .item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f2f2f2; }
+.attachments .item:last-child { border-bottom: none; }
+.attachments .item .mr { color: rgba(0,0,0,.54); }
+.attachments .item .name { font-weight: 500; }
+.attachments .item .sub { font-size: 12px; color: rgba(0,0,0,.6); }

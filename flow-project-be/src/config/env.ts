@@ -1,0 +1,17 @@
+export const env = {
+  PORT: process.env.PORT ? Number(process.env.PORT) : 4000,
+  MONGODB_URI: process.env.MONGODB_URI || 'mongodb://localhost:27017/flow_project',
+  NODE_ENV: (process.env.NODE_ENV || 'development') as 'development' | 'production' | 'test',
+  REDIS_URL: process.env.REDIS_URL || 'redis://localhost:6379',
+  BASE_URL: process.env.BASE_URL || 'http://localhost:4000',
+  SMTP_HOST: process.env.SMTP_HOST || '',
+  SMTP_PORT: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
+  SMTP_USER: process.env.SMTP_USER || '',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_SECURE: process.env.SMTP_SECURE === 'true',
+  IMAP_HOST: process.env.IMAP_HOST || '',
+  IMAP_PORT: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
+  IMAP_USER: process.env.IMAP_USER || '',
+  IMAP_PASS: process.env.IMAP_PASS || '',
+  CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
+};

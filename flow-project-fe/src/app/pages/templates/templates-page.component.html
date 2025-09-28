@@ -1,0 +1,119 @@
+<div class="grid">
+  <mat-card>
+    <mat-card-title>{{ selectedId ? 'Edit Template' : 'Create Template' }}</mat-card-title>
+    <mat-card-content>
+      <mat-form-field class="full" appearance="outline">
+        <mat-label>Name</mat-label>
+        <input matInput [(ngModel)]="name" placeholder="Greeting" [disabled]="saving || deleting" />
+      </mat-form-field>
+      <mat-form-field class="full" appearance="outline">
+        <mat-label>Subject</mat-label>
+        <input matInput [(ngModel)]="subject" placeholder="Hi {{name}}" [disabled]="saving || deleting" />
+      </mat-form-field>
+      <div class="editor">
+        <quill-editor [(ngModel)]="body" format="html" [styles]="{height: '220px'}" [placeholder]="'Write your email body here…'" theme="snow"></quill-editor>
+      </div>
+      <!-- Attachments Section -->
+      <div class="attachments">
+        <h4>Attachments</h4>
+        <div class="row">
+          <label class="file">
+            <input type="file" multiple (change)="onFilesSelected($event)" />
+            <span>Select files…</span>
+          </label>
+        </div>
+        <div class="row url-add">
+          <mat-form-field appearance="outline" class="half">
+            <mat-label>File name</mat-label>
+            <input matInput [(ngModel)]="newUrlName" placeholder="Resume.pdf" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="wide">
+            <mat-label>File URL</mat-label>
+            <input matInput [(ngModel)]="newUrl" placeholder="https://.../resume.pdf" />
+          </mat-form-field>
+          <button mat-stroked-button color="primary" (click)="addUrlAttachment()">Add URL</button>
+        </div>
+
+        <div class="list" *ngIf="attachments?.length">
+          <div class="item" *ngFor="let att of attachments; let i = index">
+            <mat-icon class="mr">attach_file</mat-icon>
+            <div class="meta">
+              <div class="name">{{att.name}}</div>
+              <div class="sub" *ngIf="att.url">{{att.url}}</div>
+              <div class="sub" *ngIf="att.contentBase64">inline content</div>
+            </div>
+            <span class="grow"></span>
+            <button mat-icon-button color="warn" (click)="removeAttachment(i)" aria-label="Remove">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-stroked-button color="primary" (click)="useSample()" [disabled]="saving || deleting">Use Sample Body</button>
+      <span class="spacer"></span>
+      <ng-container *ngIf="!selectedId; else editBtns">
+        <button mat-raised-button color="primary" (click)="create()" [disabled]="saving || !name || !subject || !body">{{ saving ? 'Saving…' : 'Create' }}</button>
+      </ng-container>
+      <ng-template #editBtns>
+        <button mat-raised-button color="primary" (click)="save()" [disabled]="saving || !name || !subject || !body">{{ saving ? 'Saving…' : 'Save' }}</button>
+        <button mat-stroked-button color="warn" (click)="openDeleteDialog()" [disabled]="deleting">
+          {{ deleting ? 'Deleting…' : 'Delete' }}
+        </button>
+        <button mat-button (click)="cancelEdit()" [disabled]="saving || deleting">Cancel</button>
+      </ng-template>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card>
+    <mat-card-title>Templates List</mat-card-title>
+    <mat-progress-bar *ngIf="loadingList" mode="indeterminate"></mat-progress-bar>
+    <mat-card-actions>
+      <button mat-stroked-button color="primary" (click)="load()" [disabled]="loadingList">{{ loadingList ? 'Loading…' : 'Reload' }}</button>
+    </mat-card-actions>
+    <mat-card-content>
+      <div class="list-wrap">
+      <mat-nav-list dense>
+        <a mat-list-item *ngFor="let t of items; trackBy: trackById" (click)="select(t)" [class.active]="t._id === selectedId">
+          <span matListItemTitle>{{t.name}}</span>
+          <span matListItemLine class="muted" [matTooltip]="t.subject">{{t.subject}}</span>
+          <span class="grow"></span>
+          <span class="actions absolute">
+            <button mat-icon-button [matMenuTriggerFor]="itemMenu" [matMenuTriggerData]="{ t: t }" aria-label="Actions" matTooltip="Actions" (click)="$event.stopPropagation()">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+          </span>
+        </a>
+        <mat-divider *ngIf="!items?.length" inset></mat-divider>
+      </mat-nav-list>
+      <div class="empty" *ngIf="!items?.length && !loadingList">No templates yet. Create your first template on the left.</div>
+      </div>
+
+      <mat-menu #itemMenu="matMenu">
+        <ng-template matMenuContent let-t="t">
+          <button mat-menu-item (click)="select(t); $event.stopPropagation()">
+            <mat-icon color="primary">edit</mat-icon>
+            <span>Edit</span>
+          </button>
+          <button mat-menu-item (click)="openDeleteDialog(t); $event.stopPropagation()">
+            <mat-icon color="warn">delete</mat-icon>
+            <span>Delete</span>
+          </button>
+        </ng-template>
+      </mat-menu>
+    </mat-card-content>
+  </mat-card>
+</div>
+
+<!-- Delete Confirmation Dialog Template -->
+<ng-template #deleteDialog let-data>
+  <h2 mat-dialog-title>Delete Template</h2>
+  <mat-dialog-content>
+    Are you sure you want to delete "<strong>{{ data?.name }}</strong>"?
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-raised-button color="warn" (click)="confirmDelete(data?._id)">Delete</button>
+  </mat-dialog-actions>
+</ng-template>
