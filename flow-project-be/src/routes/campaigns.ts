@@ -9,6 +9,7 @@ import { EmailEventModel } from '../models/EmailEvent.js';
 import { socketService } from '../services/socket.service.js';
 import { automationQueue } from '../queues/automation.js';
 import { HttpError } from '../utils/http.js';
+import { campaignLogger, flowLogger, queueLogger } from '../utils/logger.js';
 
 export const campaignsRouter = Router();
 
@@ -28,18 +29,34 @@ const CreateCampaignSchema = z.object({
 const UpdateCampaignSchema = CreateCampaignSchema.partial();
 
 campaignsRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
+  campaignLogger.info('🚀 Creating new campaign...');
+  campaignLogger.info(`Request data: ${JSON.stringify(req.body, null, 2)}`);
+  
   const data = CreateCampaignSchema.parse(req.body);
+  campaignLogger.info(`✅ Campaign validation passed: ${data.name}`);
+  
+  campaignLogger.info(`🔍 Looking up flow with ID: ${data.flowId}`);
   const flow = await AutomationFlowModel.findById(data.flowId);
-  if (!flow) throw new HttpError(404, 'AutomationFlow not found');
+  if (!flow) {
+    campaignLogger.error(`❌ AutomationFlow not found with ID: ${data.flowId}`);
+    throw new HttpError(404, 'AutomationFlow not found');
+  }
+  campaignLogger.info(`✅ Flow found: ${flow.name} (version ${flow.version})`);
+  
+  campaignLogger.info(`🔍 Looking up audience with ID: ${data.audienceId}`);
   const audience = await AudienceModel.findById(data.audienceId);
-  if (!audience) throw new HttpError(404, 'Audience not found');
+  if (!audience) {
+    campaignLogger.error(`❌ Audience not found with ID: ${data.audienceId}`);
+    throw new HttpError(404, 'Audience not found');
+  }
+  campaignLogger.info(`✅ Audience found: ${audience.name} (${audience.recipients.length} recipients)`);
 
-  const doc = await CampaignModel.create({
+  const campaignData = {
     name: data.name,
     flowId: flow._id,
     flowVersion: data.flowVersion ?? flow.version,
     audienceId: audience._id,
-    status: 'draft',
+    status: 'draft' as const,
     sender: data.sender,
     templateOverrides: data.templateOverrides,
     stats: { 
@@ -53,27 +70,58 @@ campaignsRouter.post('/', asyncHandler(async (req: Request, res: Response) => {
       openRate: 0,
       responseRate: 0
     },
-  });
+  };
+  
+  campaignLogger.info(`💾 Creating campaign in database...`);
+  const doc = await CampaignModel.create(campaignData);
+  campaignLogger.info(`🎉 Campaign created successfully with ID: ${doc._id}`);
+  campaignLogger.info(`📊 Campaign stats initialized - Total recipients: ${doc.stats?.total}`);
+  
   res.status(201).json(doc);
 }));
 
 // Start a campaign: create RecipientState docs and enqueue first jobs
 campaignsRouter.post('/:id/start', asyncHandler(async (req: Request, res: Response) => {
+  campaignLogger.info(`🎬 Starting campaign with ID: ${req.params.id}`);
+  
   const camp = await CampaignModel.findById(req.params.id);
-  if (!camp) throw new HttpError(404, 'Campaign not found');
+  if (!camp) {
+    campaignLogger.error(`❌ Campaign not found with ID: ${req.params.id}`);
+    throw new HttpError(404, 'Campaign not found');
+  }
+  
+  campaignLogger.info(`📋 Campaign found: ${camp.name} (Status: ${camp.status})`);
+  
   if (camp.status === 'running') {
+    campaignLogger.warn(`⚠️ Campaign ${camp.name} is already running`);
     res.json(camp);
     return;
   }
 
+  flowLogger.info(`🔍 Looking up flow: ${camp.flowId} (version ${camp.flowVersion})`);
   const flow = await AutomationFlowModel.findOne({ _id: camp.flowId, version: camp.flowVersion }).lean();
-  if (!flow) throw new HttpError(404, 'AutomationFlow (version) not found');
+  if (!flow) {
+    flowLogger.error(`❌ AutomationFlow not found: ${camp.flowId} version ${camp.flowVersion}`);
+    throw new HttpError(404, 'AutomationFlow (version) not found');
+  }
+  flowLogger.info(`✅ Flow found: ${flow.name} (Start node: ${flow.startNodeId})`);
 
+  campaignLogger.info(`👥 Looking up audience: ${camp.audienceId}`);
   const audience = await AudienceModel.findById(camp.audienceId).lean();
-  if (!audience) throw new HttpError(404, 'Audience not found');
+  if (!audience) {
+    campaignLogger.error(`❌ Audience not found: ${camp.audienceId}`);
+    throw new HttpError(404, 'Audience not found');
+  }
+  campaignLogger.info(`✅ Audience found: ${audience.name} (${audience.recipients.length} recipients)`);
 
   // Upsert recipient states
+  campaignLogger.info(`📝 Creating recipient states for ${audience.recipients.length} recipients...`);
+  let recipientCount = 0;
+  
   for (const r of audience.recipients) {
+    recipientCount++;
+    campaignLogger.info(`📧 Processing recipient ${recipientCount}/${audience.recipients.length}: ${r.email}`);
+    
     await RecipientStateModel.updateOne(
       { campaignId: camp._id, recipientEmail: r.email },
       {
@@ -87,6 +135,8 @@ campaignsRouter.post('/:id/start', asyncHandler(async (req: Request, res: Respon
       },
       { upsert: true }
     );
+    
+    queueLogger.info(`⏰ Queuing job for ${r.email} at node ${flow.startNodeId}`);
     await automationQueue.add(
       'process',
       { campaignId: camp._id.toString(), recipientEmail: r.email, nodeId: flow.startNodeId },
@@ -94,9 +144,15 @@ campaignsRouter.post('/:id/start', asyncHandler(async (req: Request, res: Respon
     );
   }
 
+  campaignLogger.info(`✅ All ${audience.recipients.length} recipients processed and queued`);
+  
   camp.status = 'running';
   camp.startedAt = new Date();
   await camp.save();
+  
+  campaignLogger.info(`🚀 Campaign ${camp.name} started successfully at ${camp.startedAt}`);
+  campaignLogger.info(`📊 Campaign will process ${audience.recipients.length} recipients through flow ${flow.name}`);
+  
   res.json(camp);
 }));
 
@@ -179,7 +235,7 @@ campaignsRouter.get('/track/open/:campaignId/:recipientEmail', asyncHandler(asyn
   const { campaignId, recipientEmail } = req.params;
   const decodedEmail = decodeURIComponent(recipientEmail);
   
-  console.log(`[TRACKING] 📧 Open tracking hit: ${decodedEmail} for campaign ${campaignId}`);
+  campaignLogger.info(`👁️ Open tracking hit: ${decodedEmail} for campaign ${campaignId}`);
   
   try {
     // Check if already opened to avoid duplicate counts
@@ -318,9 +374,11 @@ campaignsRouter.post('/track/reply/:campaignId/:recipientEmail', asyncHandler(as
   const { campaignId, recipientEmail } = req.params;
   const decodedEmail = decodeURIComponent(recipientEmail);
   
+  campaignLogger.info(`📧 Reply webhook triggered for ${decodedEmail} in campaign ${campaignId}`);
+  
   try {
     // Update recipient state to mark reply detected
-    await RecipientStateModel.updateOne(
+    const updateResult = await RecipientStateModel.updateOne(
       { campaignId, recipientEmail: decodedEmail },
       { 
         replyDetected: true,
@@ -329,21 +387,26 @@ campaignsRouter.post('/track/reply/:campaignId/:recipientEmail', asyncHandler(as
             nodeId: 'reply', 
             event: 'replied', 
             timestamp: new Date(),
-            details: { source: 'webhook' }
+            details: { source: 'webhook', body: req.body }
           }
         }
       }
     );
     
+    campaignLogger.info(`✅ Recipient state updated for reply. Modified count: ${updateResult.modifiedCount}`);
+    
     // Record reply event
     await EmailEventModel.create({ 
       campaignId, 
       recipientEmail: decodedEmail, 
-      type: 'replied' 
+      type: 'replied',
+      payload: req.body
     });
     
+    campaignLogger.info(`📊 Reply event recorded in database`);
+    
     // Update campaign stats
-    await CampaignModel.updateOne(
+    const statsUpdate = await CampaignModel.updateOne(
       { _id: campaignId }, 
       { 
         $inc: { 'stats.replied': 1 },
@@ -351,14 +414,34 @@ campaignsRouter.post('/track/reply/:campaignId/:recipientEmail', asyncHandler(as
       }
     );
     
-    console.log(`Reply detected: ${decodedEmail} for campaign ${campaignId}`);
-    res.json({ success: true });
-
-  // Notify clients of the update
-  socketService.emit('campaign_updated', { campaignId });
-  } catch (error) {
-    console.error('Error tracking reply:', error);
+    campaignLogger.info(`📈 Campaign stats updated for reply. Modified count: ${statsUpdate.modifiedCount}`);
+    campaignLogger.info(`🎉 Reply successfully processed: ${decodedEmail} for campaign ${campaignId}`);
+    
+    // Notify clients of the update
+    socketService.emit('campaign_updated', { campaignId });
+    
+    res.json({ success: true, message: 'Reply tracked successfully' });
+  } catch (error: any) {
+    campaignLogger.error(`❌ Error tracking reply for ${decodedEmail}: ${error.message}`);
     res.status(500).json({ error: 'Failed to track reply' });
+  }
+}));
+
+// Internal endpoint to trigger Socket.IO events (called from worker)
+campaignsRouter.post('/internal/notify/:campaignId', asyncHandler(async (req: Request, res: Response) => {
+  const { campaignId } = req.params;
+  
+  campaignLogger.info(`🔔 Internal notification request for campaign ${campaignId}`);
+  
+  try {
+    // Emit Socket.IO event
+    socketService.emit('campaign_updated', { campaignId });
+    campaignLogger.info(`✅ Socket.IO event emitted for campaign ${campaignId}`);
+    
+    res.json({ success: true, message: 'Notification sent' });
+  } catch (error: any) {
+    campaignLogger.error(`❌ Error sending notification: ${error.message}`);
+    res.status(500).json({ error: 'Failed to send notification' });
   }
 }));
 

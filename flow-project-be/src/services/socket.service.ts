@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import { serverLogger } from '../utils/logger.js';
 
 class SocketService {
   private io: Server | null = null;
@@ -13,22 +14,23 @@ class SocketService {
     });
 
     this.io.on('connection', (socket: Socket) => {
-      console.log(`[Socket] ✅ New client connected: ${socket.id}`);
+      serverLogger.info(`🔌 New client connected: ${socket.id}`);
       socket.on('disconnect', () => {
-        console.log(`[Socket] ❌ Client disconnected: ${socket.id}`);
+        serverLogger.info(`🔌 Client disconnected: ${socket.id}`);
       });
     });
     
-    console.log('[Socket] ✅ Service initialized successfully.');
+    serverLogger.info('🔌 Socket.IO service initialized successfully.');
   }
 
   public emit(event: string, data: any) {
     if (this.io) {
-      console.log(`[Socket] 📡 Emitting event '${event}' to ${this.io.engine.clientsCount} client(s)`);
-      console.log(`[Socket] 📡 Event data:`, data);
+      serverLogger.info(`📡 Emitting event '${event}' to ${this.io.engine.clientsCount} client(s)`);
+      serverLogger.info(`📡 Event data: ${JSON.stringify(data)}`);
       this.io.emit(event, data);
     } else {
-      console.error('[Socket] ❌ Socket.IO not initialized.');
+      serverLogger.warn('⚠️ Socket.IO not initialized - skipping event emission');
+      serverLogger.warn('💡 This is normal if running in worker process');
     }
   }
 

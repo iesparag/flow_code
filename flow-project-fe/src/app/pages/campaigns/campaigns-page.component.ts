@@ -406,7 +406,11 @@ export class CampaignsPageComponent implements OnInit, OnDestroy {
     }
     
     const recentRecipients = [...(this.selectedCampaign.recipients || [])]
-      .sort((a, b) => (b.sentAt?.getTime() || 0) - (a.sentAt?.getTime() || 0))
+      .sort((a, b) => {
+        const aTime = a.sentAt ? new Date(a.sentAt).getTime() : 0;
+        const bTime = b.sentAt ? new Date(b.sentAt).getTime() : 0;
+        return bTime - aTime;
+      })
       .slice(0, 10);
     
     recentRecipients.forEach(recipient => {
