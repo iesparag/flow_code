@@ -3,8 +3,8 @@ services:
   - type: web
     name: flow-backend
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: cd flow-project-be && npm install && npm run build
+    startCommand: cd flow-project-be && npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -19,12 +19,12 @@ services:
   - type: worker
     name: flow-worker
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm run start:worker
+    buildCommand: cd flow-project-be && npm install && npm run build
+    startCommand: cd flow-project-be && npm run start:worker
     envVars:
       - key: NODE_ENV
         value: production
       - key: MONGODB_URI
-        value: your_mongodb_atlas_connection_string
+        value: mongodb+srv://iesparagjaincoding:iesparagjaincoding@coding-cluster.zdaci.mongodb.net/flow_project
       - key: NODE_APP_INSTANCE
         value: "worker"
