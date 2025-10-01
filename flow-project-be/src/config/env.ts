@@ -13,5 +13,5 @@ export const env = {
   IMAP_PORT: process.env.IMAP_PORT ? Number(process.env.IMAP_PORT) : 993,
   IMAP_USER: process.env.IMAP_USER || '',
   IMAP_PASS: process.env.IMAP_PASS || '',
-  CORS_ORIGIN: process.env.CORS_ORIGIN || '*',
+  CORS_ORIGIN: process.env.CORS_ORIGIN || 'https://flow-project-fjwy0b2qz-iesparagjaingmailcoms-projects.vercel.app' || '*',
 };

@@ -23,7 +23,7 @@ export function createServer() {
   const httpServer = createHttpServer(app);
   
   serverLogger.info('🌐 Configuring CORS settings...');
-  const allowedOrigins = (env.CORS_ORIGIN || '*')
+  const allowedOrigins = (env.CORS_ORIGIN || 'https://flow-project-fjwy0b2qz-iesparagjaingmailcoms-projects.vercel.app' || '*')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);

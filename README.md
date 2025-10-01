@@ -108,7 +108,7 @@ PORT=4000
 MONGODB_URI=your_mongodb_connection_string
 REDIS_URL=your_redis_connection_string
 BASE_URL=http://localhost:4000
-CORS_ORIGIN=http://localhost:4200
+CORS_ORIGIN=http://localhost:4200 || https://flow-project-fjwy0b2qz-iesparagjaingmailcoms-projects.vercel.app
 
 # Email Configuration
 SMTP_HOST=smtp.gmail.com
