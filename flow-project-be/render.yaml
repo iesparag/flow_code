@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: flow-backend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        value: your_mongodb_atlas_connection_string
+      - key: CORS_ORIGIN
+        value: https://flow-project-fjwy0b2qz-iesparagjaingmailcoms-projects.vercel.app,http://localhost:4200
