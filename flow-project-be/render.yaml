@@ -1,4 +1,5 @@
 services:
+  # Main API Server
   - type: web
     name: flow-backend
     env: node
@@ -11,3 +12,19 @@ services:
         value: your_mongodb_atlas_connection_string
       - key: CORS_ORIGIN
         value: https://flow-project-fjwy0b2qz-iesparagjaingmailcoms-projects.vercel.app,http://localhost:4200
+      - key: NODE_APP_INSTANCE
+        value: "api"
+
+  # Worker Process
+  - type: worker
+    name: flow-worker
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        value: your_mongodb_atlas_connection_string
+      - key: NODE_APP_INSTANCE
+        value: "worker"
