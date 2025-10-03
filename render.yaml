@@ -3,8 +3,9 @@ services:
   - type: web
     name: flow-backend
     env: node
-    buildCommand: cd flow-project-be && npm install && npm run build
+    buildCommand: cd flow-project-be && npm ci && npm run build
     startCommand: cd flow-project-be && npm start
+    plan: starter
     envVars:
       - key: NODE_ENV
         value: production
@@ -14,13 +15,16 @@ services:
         value: https://flow-project-fjwy0b2qz-iesparagjaingmailcoms-projects.vercel.app,http://localhost:4200
       - key: NODE_APP_INSTANCE
         value: "api"
+      - key: PORT
+        value: "10000"
 
   # Worker Process
   - type: worker
     name: flow-worker
     env: node
-    buildCommand: cd flow-project-be && npm install && npm run build
+    buildCommand: cd flow-project-be && npm ci && npm run build
     startCommand: cd flow-project-be && npm run start:worker
+    plan: starter
     envVars:
       - key: NODE_ENV
         value: production
